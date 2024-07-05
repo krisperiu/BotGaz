@@ -27,7 +27,12 @@ question = ReplyKeyboardMarkup (keyboard=[
     KeyboardButton(text = 'Не выполнено')]
 ], resize_keyboard= True, input_field_placeholder='Выберите из вариантов снизу')
 
-async def user_reports(reps, page=1):
+question_photo = ReplyKeyboardMarkup (keyboard=[
+    [KeyboardButton(text = 'Да'),
+    KeyboardButton(text = 'Нет')]
+], resize_keyboard= True, input_field_placeholder='Выберите из вариантов снизу')
+
+async def user_reports(reps, type = 0, page=1):
     inline_keyboard = []
     ITEMS_PER_PAGE = 5
     start_index = (page - 1) * ITEMS_PER_PAGE
@@ -36,20 +41,20 @@ async def user_reports(reps, page=1):
     total_pages = (len(reps) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
 
     for report in paginated_reps:
-        button_text = f'Оценка на автобус с госномером: {report.state_number}'
-        callback_data = f'report_{report.id}'
+        button_text = f'Жалоба № {report.id} на автобус: {report.state_number}'
+        callback_data = f'report_{report.id}_{type}'
         button = InlineKeyboardButton(text=button_text, callback_data=callback_data)
         inline_keyboard.append([button])
     
     navigation_buttons = []
     if start_index > 0:
-        navigation_buttons.append(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'page_{page-1}'))
+        navigation_buttons.append(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'page_{page-1}_{type}'))
     
-    page_counter = InlineKeyboardButton(text=f'Страница {page}/{total_pages}', callback_data='page_counter', callback_disabled=True)
+    page_counter = InlineKeyboardButton(text=f'Страница {page}/{total_pages}', callback_data='rep_page_counter', callback_disabled=True)
     navigation_buttons.append(page_counter)
 
     if end_index < len(reps):
-        navigation_buttons.append(InlineKeyboardButton(text='Вперед ➡️', callback_data=f'page_{page+1}'))
+        navigation_buttons.append(InlineKeyboardButton(text='Вперед ➡️', callback_data=f'page_{page+1}_{type}'))
     
     if navigation_buttons:
         inline_keyboard.append(navigation_buttons)
@@ -65,11 +70,19 @@ reports_moder = InlineKeyboardMarkup (inline_keyboard=[
     [back_to_start]
 ])
 
-report_edit_moder = InlineKeyboardMarkup (inline_keyboard=[
-    [InlineKeyboardButton(text='Рассмотреть жалобу', callback_data='edit_new_report')],
-    [InlineKeyboardButton(text='Назад', callback_data='check_new_reports')]
-])
-
+async def report_edit_moder(type):
+    inline_keyboard = []
+    buttonNew = InlineKeyboardButton(text='Рассмотреть жалобу', callback_data='edit_new_report')
+    buttonBackNew = InlineKeyboardButton(text='Назад', callback_data='check_new_reports')
+    buttonBackOld = InlineKeyboardButton(text='Назад', callback_data='check_old_reports')
+    if type == 0:
+        inline_keyboard.append([buttonNew])
+        inline_keyboard.append([buttonBackNew])
+    else:
+        inline_keyboard.append([buttonBackOld])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+    return keyboard
+    
 ins_new_moder = InlineKeyboardButton(text='Назначить модератора', callback_data='ins_new_moder')
 
 if_no_moders = InlineKeyboardMarkup (inline_keyboard=[[ins_new_moder], [back_to_start]])
@@ -92,7 +105,7 @@ async def moders(moders, page=1):
     if start_index > 0:
         navigation_buttons.append(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'pageModers_{page-1}'))
     
-    page_counter = InlineKeyboardButton(text=f'Страница {page}/{total_pages}', callback_data='page_counter', callback_disabled=True)
+    page_counter = InlineKeyboardButton(text=f'Страница {page}/{total_pages}', callback_data='moders_page_counter', callback_disabled=True)
     navigation_buttons.append(page_counter)
 
     if end_index < len(moders):

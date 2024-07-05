@@ -6,11 +6,17 @@ from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-
 import database.requests as rq
 import app.keyboards as kb 
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 router=Router()
+
+last_bot_message_id = None
+
 
 class Report (StatesGroup):
     state_number = State()
@@ -28,6 +34,8 @@ class Report (StatesGroup):
     temperature = State()
     comment = State()
     ranked = State()
+    photo = State()
+    photo_question = State()
 
 class ModerComment(StatesGroup):
     comment = State()
@@ -192,9 +200,34 @@ async def new_report_14(message: Message, state: FSMContext):
 
 @router.message(Report.comment)
 async def new_report_15(message: Message, state: FSMContext):
-    await state.update_data(comment = message.text)
-    await state.set_state(Report.ranked)
-    await message.answer('Оставьте оценку от 1 до 5.')
+    await state.update_data(comment=message.text)
+    await state.set_state(Report.photo_question)
+    await message.answer('Хотите оставить фото?', reply_markup=kb.question_photo)
+
+@router.message(Report.photo_question)
+async def handle_photo_question(message: Message, state: FSMContext):
+    if message.text.lower() == 'да':
+        await state.set_state(Report.photo)
+        await message.answer('Пожалуйста, загрузите фото. Когда закончите, отправьте "Готово".', reply_markup=ReplyKeyboardRemove())
+    else:
+        await state.set_state(Report.ranked)
+        await message.answer('Оставьте оценку от 1 до 5.', reply_markup=ReplyKeyboardRemove())
+
+@router.message(Report.photo, F.photo | F.text)
+async def handle_photo(message: Message, state: FSMContext):
+    if message.content_type == F.photo and message.photo:
+        photo = message.photo[-1]
+        photo_id = photo.file_id
+        data = await state.get_data()
+        photos = data.get('photos', [])
+        photos.append(photo_id)
+        await state.update_data(photos=photos)
+        await message.answer('Фото добавлено. Вы можете загрузить ещё фото или отправить "Готово", чтобы продолжить.')
+    elif message.content_type == F.text and message.text.lower() == 'готово':
+        await state.set_state(Report.ranked)
+        await message.answer('Оставьте оценку от 1 до 5.', reply_markup=ReplyKeyboardRemove())
+    else:
+        await message.answer('Пожалуйста, загрузите фото или отправьте "Готово", чтобы продолжить.')
 
 @router.message(Report.ranked)
 async def new_report_16(message: Message, state: FSMContext):
@@ -205,6 +238,7 @@ async def new_report_16(message: Message, state: FSMContext):
         
         await state.update_data(ranked=ranked)
         data = await state.get_data()
+        photos = data.get('photos', [])
         await rq.ins_report(
             message.from_user.id,
             data["state_number"],
@@ -221,7 +255,8 @@ async def new_report_16(message: Message, state: FSMContext):
             data["briefing"],
             data["temperature"],
             data["comment"],
-            int(data["ranked"])
+            int(data["ranked"]),
+            photos
         )
         await message.answer('Спасибо, ваша жалоба сохранена.', reply_markup=kb.start_user)
         await state.clear()
@@ -231,51 +266,90 @@ async def new_report_16(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == 'my_reports')
 async def my_reports(callback: CallbackQuery):
+    global last_bot_message_id
     reps = await rq.check_reps(callback.from_user.id)
     if reps:
-        await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup= await kb.user_reports(reps))
+        sent_message = await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup= await kb.user_reports(reps))
+        last_bot_message_id = sent_message.message_id
     else:
         await callback.message.edit_text('Вы не оставляли оценки.')
         await callback.message.answer('В меню ниже вы можете перейти к своим жалобам или оставить новую.', reply_markup = kb.start_user)
 
 @router.callback_query(F.data.startswith('report_'))
 async def report_n(callback: CallbackQuery, state: FSMContext):
-    report_id = int(callback.data.replace('report_',''))
+    global last_bot_message_id
+    parts = callback.data.split('_')
+    report_id = int(parts[1])
+    type = int(parts[2])
     rep = await rq.get_report_by_id(report_id)
     check = await rq.is_admin(callback.from_user.id)
     if check:
+        await callback.message.bot.delete_message(chat_id=callback.message.chat.id, message_id=last_bot_message_id)
         await state.update_data(report_id = report_id)
-        await callback.message.edit_text(
-            f'Жалоба на автобус с госномером: {rep[0].state_number}\n'
-            f'Дата: {rep[0].date}\n'
-            f'Внешний вид тс: {rep[0].appearance}\n'
-            f'Чистота салона: {rep[0].cl_interior}\n'
-            f'Чистота сидений: {rep[0].cl_seat}\n'
-            f'Чистота ручек: {rep[0].cl_handles}\n'
-            f'Целостность сидений: {rep[0].seat_integrity}\n'
-            f'Наличие в салоне памятки пассажира: {rep[0].checklist}\n'
-            f'Наличие в салоне портфолио водителя: {rep[0].portfolio}\n'
-            f'Наличие в исправном состоянии ремней безопасности: {rep[0].seat_belts}\n'
-            f'Опрятный внешний вид водителя: {rep[0].drivers_appearance}\n'
-            f'Доброжелательное поведение водителя: {rep[0].behaviour}\n'
-            f'Проведен ли инструктаж водителем (аудио ассистентом) перед началом поездки: {rep[0].briefing}\n'
-            f'Комфортная температура в салоне (работающий кондиционер летом/работающая печь зимой): {rep[0].temperature}\n'
-            f'Комментарии пассажира: {rep[0].comment}\n'
-            f'Оценка пассажира: {rep[0].ranked}\n',
-            reply_markup=kb.report_edit_moder
+        report_text = (
+            f'Жалоба №: {rep.id}\n'
+            f'Госномер автобуса: {rep.state_number}\n'
+            f'Дата: {rep.date}\n'
+            f'Внешний вид тс: {rep.appearance}\n'
+            f'Чистота салона: {rep.cl_interior}\n'
+            f'Чистота сидений: {rep.cl_seat}\n'
+            f'Чистота ручек: {rep.cl_handles}\n'
+            f'Целостность сидений: {rep.seat_integrity}\n'
+            f'Наличие в салоне памятки пассажира: {rep.checklist}\n'
+            f'Наличие в салоне портфолио водителя: {rep.portfolio}\n'
+            f'Наличие в исправном состоянии ремней безопасности: {rep.seat_belts}\n'
+            f'Опрятный внешний вид водителя: {rep.drivers_appearance}\n'
+            f'Доброжелательное поведение водителя: {rep.behaviour}\n'
+            f'Проведен ли инструктаж водителем (аудио ассистентом) перед началом поездки: {rep.briefing}\n'
+            f'Комфортная температура в салоне (работающий кондиционер летом/работающая печь зимой): {rep.temperature}\n'
+            f'Комментарии пассажира: {rep.comment}\n'
+            f'Оценка пассажира: {rep.ranked}\n'
+            f'Комментарий модератора: {rep.comment_moder}'
         )
-    else:    
-        if rep[0].status == 0:
+
+        if rep.photos:
+            for idx, photo in enumerate(rep.photos, start=1):
+                await callback.message.answer_photo(photo.photo_id, caption=f'Жалоба №: {rep.id}\n'
+                                                    f'Фото {idx}')
+
+        await callback.message.answer(
+            report_text,
+            reply_markup=await kb.report_edit_moder(type)
+        )
+    else:  
+        await callback.message.bot.delete_message(chat_id=callback.message.chat.id, message_id=last_bot_message_id)
+        if rep.status == 0:
             status = 'На рассмотрении'
         else: 
             status = 'Рассмотрена'
-        await callback.message.edit_text(f'Жалоба на автобус с госномером: {rep[0].state_number}\nДата: {rep[0].date}\nСтатус: {status}\nКомментарий специалиста: {rep[0].comment_moder}',reply_markup=kb.back_my_reports)
+        text_message = (
+            f'Жалоба №: {rep.id}\n'
+            f'Жалоба на автобус с госномером: {rep.state_number}\n'
+            f'Дата: {rep.date}\n'
+            f'Статус: {status}\n'
+            f'Комментарий специалиста: {rep.comment_moder}\n'
+        )
+        if rep.photos:
+            for idx, photo in enumerate(rep.photos, start=1):
+                await callback.message.answer_photo(photo.photo_id, caption=f'Жалоба №: {rep.id}\n'
+                                                    f'Фото {idx}')
+ 
+        await callback.message.answer(
+            text_message,
+            reply_markup = kb.back_my_reports
+        )
 
 @router.callback_query(F.data.startswith('page_'))
 async def paginate_reports(callback: CallbackQuery):
-    page = int(callback.data.replace('page_', ''))
-    reps = await rq.check_reps(callback.from_user.id)
-    keyboard = await kb.user_reports(reps, page)
+    parts = callback.data.split('_')
+    page = int(parts[1])
+    type = int(parts[2])
+    check = await rq.is_admin(callback.from_user.id)
+    if check:
+        reps = await rq.check_moder_reps(type)
+    else:
+        reps = await rq.check_reps(callback.from_user.id)
+    keyboard = await kb.user_reports(reps, type, page)
     await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup=keyboard)
 
 @router.callback_query(F.data == 'back_to_start')
@@ -295,9 +369,11 @@ async def check_reports(callback: CallbackQuery):
 
 @router.callback_query(F.data == 'check_new_reports')
 async def check_new_reports(callback: CallbackQuery):
+    global last_bot_message_id
     reps = await rq.check_moder_reps(0)
     if reps:
-        await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup= await kb.user_reports(reps))
+        sent_message = await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup= await kb.user_reports(reps))
+        last_bot_message_id = sent_message.message_id
     else:
         await callback.message.edit_text('Новых оценок нет.')
         await callback.message.answer('Выберите, какие оценки вы хотите посмотреть',reply_markup=kb.reports_moder)
@@ -309,18 +385,23 @@ async def edit_new_report(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ModerComment.comment)
 async def edit_new_report2(message: Message, state: FSMContext):
+    from run import bot
     await state.update_data(comment = message.text)
     data_com = await state.get_data()
     await rq.update_comment_moder(data_com['report_id'], data_com['comment'])
+    rep = await rq.get_report_by_id(data_com['report_id'])
+    await bot.send_message(chat_id=rep.tg_id, text=f'Новый комментарий от модератора по жалобе №{rep.id}')
     await message.answer('Спасибо, комментарий сохранен.')
     await message.answer('Выберите, какие оценки вы хотите посмотреть.', reply_markup = kb.reports_moder)
     await state.clear()
 
 @router.callback_query(F.data == 'check_old_reports')
 async def check_old_reports(callback: CallbackQuery):
+    global last_bot_message_id
     reps = await rq.check_moder_reps(1)
     if reps:
-        await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup= await kb.user_reports(reps))
+        sent_message = await callback.message.edit_text('Выберите оценку из списка ниже.', reply_markup= await kb.user_reports(reps,1))
+        last_bot_message_id = sent_message.message_id
     else:
         await callback.message.edit_text('Рассмотренных оценок нет.')
         await callback.message.answer('Выберите, какие оценки вы хотите посмотреть',reply_markup=kb.reports_moder)

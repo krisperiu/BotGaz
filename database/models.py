@@ -48,6 +48,12 @@ class Bus(Base):
     state_number: Mapped[str] = mapped_column(String(10), primary_key=True)
     bus_info: Mapped[str] = mapped_column(String(80))
 
+class Photo(Base):
+    __tablename__ = 'photos'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey('reports.id'))
+    photo_id: Mapped[str] = mapped_column(String(250))
+
 async def async_main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

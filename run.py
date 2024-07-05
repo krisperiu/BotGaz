@@ -8,11 +8,11 @@ from dotenv import load_dotenv
 from app.handlers import router
 from database.models import async_main
 
+bot = Bot(token=os.getenv('TOKEN'))
 
 async def main():
     load_dotenv()
     await async_main()
-    bot = Bot(token=os.getenv('TOKEN'))
     dp = Dispatcher()
     dp.include_router(router)
     await dp.start_polling(bot)

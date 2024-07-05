@@ -1,6 +1,6 @@
 from database.models import async_session
-from database.models import Admin, Report, Bus
-from sqlalchemy import select, update, asc
+from database.models import Admin, Report, Bus, Photo
+from sqlalchemy import select, update, asc, desc
 import datetime as dt
 
 async def is_admin(tg_id):
@@ -23,30 +23,40 @@ async def ins_report (tg_id,
                       briefing,
                       temperature,
                       comment,
-                      ranked):
+                      ranked,
+                      photo_ids=[]):
     async with async_session() as session:
         async with session.begin():
             date = dt.date.today()
-            new_report = Report(tg_id = tg_id,
-                    state_number = state_number,
-                    appearance = appearance, 
-                    cl_interior = cl_interior,
-                    cl_seat = cl_seat,
-                    cl_handles = cl_handles,
-                    seat_integrity = seat_integrity,
-                    checklist = checklist,
-                    portfolio = portfolio,
-                    seat_belts = seat_belts,
-                    drivers_appearance = drivers_appearance,
-                    behaviour = behaviour,
-                    briefing = briefing,
-                    temperature = temperature,
-                    comment = comment,
-                    ranked = ranked,
-                    date=date,
-                    status=0,
-                    comment_moder='Оценка еще не рассмотрена.')
+            new_report = Report(
+                tg_id=tg_id,
+                state_number=state_number,
+                appearance=appearance,
+                cl_interior=cl_interior,
+                cl_seat=cl_seat,
+                cl_handles=cl_handles,
+                seat_integrity=seat_integrity,
+                checklist=checklist,
+                portfolio=portfolio,
+                seat_belts=seat_belts,
+                drivers_appearance=drivers_appearance,
+                behaviour=behaviour,
+                briefing=briefing,
+                temperature=temperature,
+                comment=comment,
+                ranked=ranked,
+                date=date,
+                status=0,
+                comment_moder='Оценка еще не рассмотрена.'
+            )
             session.add(new_report)
+
+            await session.flush()
+            report_id = new_report.id
+
+            for photo_id in photo_ids:
+                new_photo = Photo(report_id=report_id, photo_id=photo_id)
+                session.add(new_photo)
         await session.commit()
 
 async def get_bus_by_state_number (state_number):
@@ -56,21 +66,28 @@ async def get_bus_by_state_number (state_number):
 
 async def check_reps(tg_id):
     async with async_session() as session:
-        stmt = select(Report).where(Report.tg_id == tg_id)
+        stmt = select(Report).where(Report.tg_id == tg_id).order_by(desc(Report.date), desc(Report.id))
         result = await session.execute(stmt)
         reps = result.scalars().all()
         return reps
 
-async def get_report_by_id (id):
+async def get_report_by_id(report_id):
     async with async_session() as session:
-        stmt = select(Report).where(Report.id == id)
-        result = await session.execute(stmt)
-        reps = result.scalars().all()
-        return reps
+        stmt_report = select(Report).where(Report.id == report_id)
+        result_report = await session.execute(stmt_report)
+        report = result_report.scalars().first()
+        
+        if report:
+            stmt_photos = select(Photo).where(Photo.report_id == report.id)
+            result_photos = await session.execute(stmt_photos)
+            photos = result_photos.scalars().all()
+            report.photos = photos
+            
+        return report
 
 async def check_moder_reps(status):
     async with async_session() as session:
-        stmt = select(Report).where(Report.status == status).order_by(asc(Report.date))
+        stmt = select(Report).where(Report.status == status).order_by(asc(Report.date), asc(Report.id))
         result = await session.execute(stmt)
         reps = result.scalars().all()
         return reps
