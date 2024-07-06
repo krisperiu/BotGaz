@@ -100,7 +100,7 @@
 1. **Клонируйте репозиторий:**
 
     ```bash
-    git clone https://github.com/your-repo/your-project.git
+    git clone https://github.com/krisperiu/BotGaz.git
     cd your-project
     ```
 
