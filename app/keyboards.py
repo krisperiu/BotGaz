@@ -3,16 +3,16 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import database.requests as rq
 
 start_user = InlineKeyboardMarkup (inline_keyboard=[
-    [InlineKeyboardButton(text='Оставить жалобу',callback_data='new_report')],
-    [InlineKeyboardButton(text='Мои жалобы',callback_data='my_reports')]
+    [InlineKeyboardButton(text='Оставить оценку',callback_data='new_report')],
+    [InlineKeyboardButton(text='Мои оценки транспорта',callback_data='my_reports')]
 ])
 
 start_moderator = InlineKeyboardMarkup (inline_keyboard=[
-    [InlineKeyboardButton(text='Просмотр жалоб', callback_data='check_reports')]
+    [InlineKeyboardButton(text='Просмотр оценок', callback_data='check_reports')]
 ])
 
 start_admin = InlineKeyboardMarkup (inline_keyboard=[
-    [InlineKeyboardButton(text='Просмотр жалоб', callback_data='check_reports')],
+    [InlineKeyboardButton(text='Просмотр оценок', callback_data='check_reports')],
     [InlineKeyboardButton(text='Модераторы', callback_data='check_moderators')]
 ])
 
@@ -41,7 +41,7 @@ async def user_reports(reps, type = 0, page=1):
     total_pages = (len(reps) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
 
     for report in paginated_reps:
-        button_text = f'Жалоба № {report.id} на автобус: {report.state_number}'
+        button_text = f'Оценка № {report.id} на автобус: {report.state_number}'
         callback_data = f'report_{report.id}_{type}'
         button = InlineKeyboardButton(text=button_text, callback_data=callback_data)
         inline_keyboard.append([button])
@@ -65,14 +65,14 @@ async def user_reports(reps, type = 0, page=1):
     return keyboard
 
 reports_moder = InlineKeyboardMarkup (inline_keyboard=[
-    [InlineKeyboardButton(text='Просмотр нерассмотренных жалоб', callback_data='check_new_reports')],
-    [InlineKeyboardButton(text='Просмотр рассмотренных жалоб', callback_data='check_old_reports')],
+    [InlineKeyboardButton(text='Просмотр нерассмотренных оценок', callback_data='check_new_reports')],
+    [InlineKeyboardButton(text='Просмотр рассмотренных оценок', callback_data='check_old_reports')],
     [back_to_start]
 ])
 
 async def report_edit_moder(type):
     inline_keyboard = []
-    buttonNew = InlineKeyboardButton(text='Рассмотреть жалобу', callback_data='edit_new_report')
+    buttonNew = InlineKeyboardButton(text='Рассмотреть оценку', callback_data='edit_new_report')
     buttonBackNew = InlineKeyboardButton(text='Назад', callback_data='check_new_reports')
     buttonBackOld = InlineKeyboardButton(text='Назад', callback_data='check_old_reports')
     if type == 0:

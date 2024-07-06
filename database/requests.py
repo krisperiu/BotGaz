@@ -9,6 +9,7 @@ async def is_admin(tg_id):
         return user
 
 async def ins_report (tg_id,
+                      name,
                       state_number, 
                       appearance, 
                       cl_interior, 
@@ -47,6 +48,7 @@ async def ins_report (tg_id,
                 ranked=ranked,
                 date=date,
                 status=0,
+                name= name,
                 comment_moder='Оценка еще не рассмотрена.'
             )
             session.add(new_report)

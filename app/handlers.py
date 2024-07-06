@@ -54,11 +54,11 @@ async def cmd_start(message: Message):
     check = await rq.is_admin(message.from_user.id)
     if check:
         if check.level == 2:
-            await message.answer('Добрый день! В меню ниже вы можете просмотреть жалобы и посмотреть список модераторов.', reply_markup = kb.start_admin)
+            await message.answer('Добрый день! В меню ниже вы можете просмотреть оценки транспорта и посмотреть список модераторов.', reply_markup = kb.start_admin)
         else:
-            await message.answer('Добрый день! В меню ниже вы можете просмотреть жалобы.', reply_markup = kb.start_moderator)
+            await message.answer('Добрый день! В меню ниже вы можете просмотреть оценки транспорта.', reply_markup = kb.start_moderator)
     else:
-        await message.answer('Добрый день! В меню ниже вы можете перейти к своим жалобам или оставить новую.', reply_markup = kb.start_user)
+        await message.answer('Добрый день! В меню ниже вы можете перейти к своим оценкам транспорта или оставить новую.', reply_markup = kb.start_user)
 
         
 
@@ -241,6 +241,7 @@ async def new_report_16(message: Message, state: FSMContext):
         photos = data.get('photos', [])
         await rq.ins_report(
             message.from_user.id,
+            message.from_user.username,
             data["state_number"],
             data["appearance"],
             data["cl_interior"],
@@ -258,7 +259,7 @@ async def new_report_16(message: Message, state: FSMContext):
             int(data["ranked"]),
             photos
         )
-        await message.answer('Спасибо, ваша жалоба сохранена.', reply_markup=kb.start_user)
+        await message.answer('Спасибо, ваша оценка сохранена.', reply_markup=kb.start_user)
         await state.clear()
         
     except ValueError:
@@ -273,7 +274,7 @@ async def my_reports(callback: CallbackQuery):
         last_bot_message_id = sent_message.message_id
     else:
         await callback.message.edit_text('Вы не оставляли оценки.')
-        await callback.message.answer('В меню ниже вы можете перейти к своим жалобам или оставить новую.', reply_markup = kb.start_user)
+        await callback.message.answer('В меню ниже вы можете перейти к своим оценкам или оставить новую.', reply_markup = kb.start_user)
 
 @router.callback_query(F.data.startswith('report_'))
 async def report_n(callback: CallbackQuery, state: FSMContext):
@@ -287,9 +288,10 @@ async def report_n(callback: CallbackQuery, state: FSMContext):
         await callback.message.bot.delete_message(chat_id=callback.message.chat.id, message_id=last_bot_message_id)
         await state.update_data(report_id = report_id)
         report_text = (
-            f'Жалоба №: {rep.id}\n'
+            f'Оценка №: {rep.id}\n'
             f'Госномер автобуса: {rep.state_number}\n'
             f'Дата: {rep.date}\n'
+            f'Пользователь: @{rep.name}\n'
             f'Внешний вид тс: {rep.appearance}\n'
             f'Чистота салона: {rep.cl_interior}\n'
             f'Чистота сидений: {rep.cl_seat}\n'
@@ -309,7 +311,7 @@ async def report_n(callback: CallbackQuery, state: FSMContext):
 
         if rep.photos:
             for idx, photo in enumerate(rep.photos, start=1):
-                await callback.message.answer_photo(photo.photo_id, caption=f'Жалоба №: {rep.id}\n'
+                await callback.message.answer_photo(photo.photo_id, caption=f'Оценка №: {rep.id}\n'
                                                     f'Фото {idx}')
 
         await callback.message.answer(
@@ -323,15 +325,15 @@ async def report_n(callback: CallbackQuery, state: FSMContext):
         else: 
             status = 'Рассмотрена'
         text_message = (
-            f'Жалоба №: {rep.id}\n'
-            f'Жалоба на автобус с госномером: {rep.state_number}\n'
+            f'Оценка №: {rep.id}\n'
+            f'Оценка на автобус: {rep.state_number}\n'
             f'Дата: {rep.date}\n'
             f'Статус: {status}\n'
             f'Комментарий специалиста: {rep.comment_moder}\n'
         )
         if rep.photos:
             for idx, photo in enumerate(rep.photos, start=1):
-                await callback.message.answer_photo(photo.photo_id, caption=f'Жалоба №: {rep.id}\n'
+                await callback.message.answer_photo(photo.photo_id, caption=f'Оценка №: {rep.id}\n'
                                                     f'Фото {idx}')
  
         await callback.message.answer(
@@ -357,11 +359,11 @@ async def back_to_start(callback: CallbackQuery):
     check = await rq.is_admin(callback.from_user.id)
     if check:
         if check.level == 2:
-            await callback.message.edit_text('Добрый день! В меню ниже вы можете просмотреть жалобы и посмотреть список модераторов.', reply_markup = kb.start_admin)
+            await callback.message.edit_text('Добрый день! В меню ниже вы можете просмотреть оценки транспорта и посмотреть список модераторов.', reply_markup = kb.start_admin)
         else:
-            await callback.message.edit_text('Добрый день! В меню ниже вы можете просмотреть жалобы.', reply_markup = kb.start_moderator)
+            await callback.message.edit_text('Добрый день! В меню ниже вы можете просмотреть оценки транспорта.', reply_markup = kb.start_moderator)
     else:
-        await callback.message.edit_text('Добрый день! В меню ниже вы можете перейти к своим жалобам или оставить новую.', reply_markup = kb.start_user)
+        await callback.message.edit_text('Добрый день! В меню ниже вы можете перейти к своим оценкам транспорта или оставить новую.', reply_markup = kb.start_user)
 
 @router.callback_query(F.data == 'check_reports')
 async def check_reports(callback: CallbackQuery):
@@ -390,7 +392,7 @@ async def edit_new_report2(message: Message, state: FSMContext):
     data_com = await state.get_data()
     await rq.update_comment_moder(data_com['report_id'], data_com['comment'])
     rep = await rq.get_report_by_id(data_com['report_id'])
-    await bot.send_message(chat_id=rep.tg_id, text=f'Новый комментарий от модератора по жалобе №{rep.id}')
+    await bot.send_message(chat_id=rep.tg_id, text=f'Новый комментарий от модератора по оценке №{rep.id}')
     await message.answer('Спасибо, комментарий сохранен.')
     await message.answer('Выберите, какие оценки вы хотите посмотреть.', reply_markup = kb.reports_moder)
     await state.clear()
@@ -429,7 +431,7 @@ async def ins_moder_byId(message: Message, state: FSMContext):
         else:
             await rq.ins_moder(tg_id)
             await message.answer(f'Модератор с айди {tg_id} назначен.')
-        await message.answer('Добрый день! В меню ниже вы можете просмотреть жалобы и посмотреть список модераторов.', reply_markup = kb.start_admin)    
+        await message.answer('Добрый день! В меню ниже вы можете просмотреть оценки транспорта и посмотреть список модераторов.', reply_markup = kb.start_admin)    
         await state.clear()
     except ValueError:
         await message.answer("Некорректный id. Пожалуйста, введите id еще раз.")
@@ -461,4 +463,4 @@ async def delete_approve(callback: CallbackQuery, state: FSMContext):
     await rq.delete_moder(int(data['id']))
     await state.clear()
     await callback.message.edit_text('Модератор удален')
-    await callback.message.answer('Добрый день! В меню ниже вы можете просмотреть жалобы и посмотреть список модераторов.', reply_markup = kb.start_admin)
+    await callback.message.answer('Добрый день! В меню ниже вы можете просмотреть оценки транспорта и посмотреть список модераторов.', reply_markup = kb.start_admin)

@@ -24,6 +24,7 @@ class Report(Base):
     __tablename__ = 'reports'
     id: Mapped[int] = mapped_column(primary_key=True)
     tg_id = mapped_column(BigInteger)
+    name: Mapped[str] = mapped_column(String(20))
     appearance: Mapped[str] = mapped_column(String(15))
     cl_interior: Mapped[str] = mapped_column(String(15))
     cl_seat: Mapped[str] = mapped_column(String(15))
