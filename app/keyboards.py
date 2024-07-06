@@ -1,6 +1,4 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-import database.requests as rq
 
 start_user = InlineKeyboardMarkup (inline_keyboard=[
     [InlineKeyboardButton(text='Оставить оценку',callback_data='new_report')],
